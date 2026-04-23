@@ -106,7 +106,7 @@ Manual test flow:
 7. Post a discussion comment on an article.
 8. Refresh the page and confirm your data reloads from Firestore.
 
-## Notes for your team
+## Notes
 
 - The backend is now only responsible for arXiv integration.
 - User state and collaboration data are stored in Firestore.
