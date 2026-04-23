@@ -37,6 +37,50 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString();
 }
 
+const categoryFallbackLabels = {
+  "cs.CR": "Cryptography and Security",
+  "cs.DB": "Databases",
+  "cs.DC": "Distributed Computing",
+  "cs.DS": "Data Structures and Algorithms",
+  "cs.HC": "Human-Computer Interaction",
+  "cs.IR": "Information Retrieval",
+  "cs.NE": "Neural and Evolutionary Computing",
+  "cs.NI": "Networking and Internet Architecture",
+  "cs.PL": "Programming Languages",
+  "cs.SE": "Software Engineering",
+  "econ.EM": "Econometrics",
+  "eess.AS": "Audio and Speech Processing",
+  "eess.IV": "Image and Video Processing",
+  "eess.SP": "Signal Processing",
+  "hep-th": "High Energy Physics - Theory",
+  "math.OC": "Optimization and Control",
+  "quant-ph": "Quantum Physics"
+};
+
+function getCategoryLabel(code, categories) {
+  if (!code) {
+    return "General";
+  }
+
+  const knownLabel = categories.find((category) => category.code === code)?.label;
+  if (knownLabel) {
+    return knownLabel;
+  }
+
+  return categoryFallbackLabels[code] || code;
+}
+
+function openExternalLink(url) {
+  if (!url) {
+    return;
+  }
+
+  const newWindow = window.open(url, "_blank", "noopener,noreferrer");
+  if (!newWindow) {
+    window.location.href = url;
+  }
+}
+
 function AuthPanel({ user, busy, authMode, authForm, onAuthModeChange, onAuthFormChange, onEmailAuth, onGoogleAuth, onSignOut }) {
   return (
     <section className="panel accent">
@@ -126,43 +170,78 @@ function SearchPanel({ filters, categories, onChange, onSearch, loading }) {
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Discovery</p>
-          <h2>Search scholarly articles</h2>
+          <h2>Smart search for scholarly articles</h2>
         </div>
       </div>
       <div className="filters">
-        <input value={filters.q} placeholder="Keywords" onChange={(event) => onChange("q", event.target.value)} />
-        <input value={filters.author} placeholder="Author" onChange={(event) => onChange("author", event.target.value)} />
-        <select value={filters.category} onChange={(event) => onChange("category", event.target.value)}>
-          <option value="">All categories</option>
-          {categories.map((category) => (
-            <option key={category.code} value={category.code}>
-              {category.code} - {category.label}
-            </option>
-          ))}
-        </select>
-        <input type="date" value={filters.from} onChange={(event) => onChange("from", event.target.value)} />
-        <input type="date" value={filters.to} onChange={(event) => onChange("to", event.target.value)} />
-        <button onClick={onSearch} disabled={loading}>
-          {loading ? "Searching..." : "Search papers"}
-        </button>
+        <label>
+          <span className="field-label">Keywords</span>
+          <input value={filters.q} placeholder="Keywords" onChange={(event) => onChange("q", event.target.value)} />
+        </label>
+        <label>
+          <span className="field-label">Author</span>
+          <input value={filters.author} placeholder="Author" onChange={(event) => onChange("author", event.target.value)} />
+        </label>
+        <label>
+          <span className="field-label">Category</span>
+          <select value={filters.category} onChange={(event) => onChange("category", event.target.value)}>
+            <option value="">All categories</option>
+            {categories.map((category) => (
+              <option key={category.code} value={category.code}>
+                {category.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span className="field-label">Published after</span>
+          <input type="date" value={filters.from} onChange={(event) => onChange("from", event.target.value)} />
+        </label>
+        <label>
+          <span className="field-label">Published before</span>
+          <input type="date" value={filters.to} onChange={(event) => onChange("to", event.target.value)} />
+        </label>
+        <label className="search-action">
+          <span className="field-label">Run search</span>
+          <button type="button" onClick={onSearch} disabled={loading}>
+            {loading ? "Searching..." : "Search papers"}
+          </button>
+        </label>
       </div>
       <p className="muted">
         {hasActiveFilters
-          ? "Active filters are applied. Change or clear them, then search again to update the results."
-          : "No filters applied. This is showing the newest arXiv papers. Add keywords, author, category, or dates to narrow the list."}
+          ? "Active filters are applied. Smart search boosts close title, author, and category matches before showing results."
+          : "No filters applied. This is showing the newest arXiv papers. Add keywords, author, category, or dates to trigger smart matching and ranking."}
       </p>
     </section>
   );
 }
 
-function ArticleList({ results, selectedId, onSelect }) {
+function ArticleList({
+  results,
+  selectedId,
+  onSelect,
+  categories,
+  totalResults,
+  currentPage,
+  totalPages,
+  onPageChange
+}) {
+  const resultsHeading =
+    totalResults >= 50
+      ? "Showing top 50 results"
+      : `${totalResults} papers found`;
+
   return (
     <section className="panel">
       <div className="panel-heading">
         <div>
           <p className="eyebrow">Results</p>
-          <h2>{results.length} papers found</h2>
+          <h2>{resultsHeading}</h2>
         </div>
+        {totalPages > 1 ? (
+          <div className="pagination-summary">Page {currentPage} of {totalPages}</div>
+        ) : null}
       </div>
       <div className="results">
         {results.length === 0 ? (
@@ -177,18 +256,38 @@ function ArticleList({ results, selectedId, onSelect }) {
             className={`article-card ${selectedId === article.id ? "selected" : ""}`}
             onClick={() => onSelect(article)}
           >
-            <span className="article-category">{article.primaryCategory || "General"}</span>
+            <span className="article-category">{getCategoryLabel(article.primaryCategory, categories)}</span>
             <h3>{article.title}</h3>
             <p>{article.authors.join(", ") || "Unknown authors"}</p>
             <small>Published {formatDate(article.published)}</small>
           </button>
         ))}
       </div>
+      {totalPages > 1 ? (
+        <div className="pagination-controls">
+          <button
+            type="button"
+            className="secondary"
+            disabled={currentPage === 1}
+            onClick={() => onPageChange(currentPage - 1)}
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            className="secondary"
+            disabled={currentPage === totalPages}
+            onClick={() => onPageChange(currentPage + 1)}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
 
-function ArticleDetail({ article, isFavorite, signedIn, onToggleFavorite, onTrackHistory }) {
+function ArticleDetail({ article, isFavorite, signedIn, onToggleFavorite, onTrackHistory, categories }) {
   if (!article) {
     return (
       <section className="panel">
@@ -223,7 +322,7 @@ function ArticleDetail({ article, isFavorite, signedIn, onToggleFavorite, onTrac
         </div>
         <div>
           <span>Primary category</span>
-          <strong>{article.primaryCategory || "Unknown"}</strong>
+          <strong>{getCategoryLabel(article.primaryCategory, categories)}</strong>
         </div>
         <div>
           <span>Published</span>
@@ -236,20 +335,27 @@ function ArticleDetail({ article, isFavorite, signedIn, onToggleFavorite, onTrac
       </div>
       <p className="abstract">{article.abstract}</p>
       <div className="link-row">
-        <a href={article.entryId} target="_blank" rel="noreferrer">
+        <button className="secondary" onClick={() => openExternalLink(article.entryId)} disabled={!article.entryId}>
           View abstract page
-        </a>
-        {article.pdfUrl ? (
-          <a href={article.pdfUrl} target="_blank" rel="noreferrer">
-            Open PDF
-          </a>
-        ) : null}
+        </button>
+        <button onClick={() => openExternalLink(article.pdfUrl)} disabled={!article.pdfUrl}>
+          Open PDF
+        </button>
       </div>
     </section>
   );
 }
 
-function Sidebar({ dashboard, categories, signedIn, onAddAlert, onDeleteAlert, onRefreshNotifications }) {
+function Sidebar({
+  dashboard,
+  categories,
+  signedIn,
+  onAddAlert,
+  onDeleteAlert,
+  onRefreshNotifications,
+  onSelectFavorite,
+  onSelectHistoryItem
+}) {
   const [alertCategory, setAlertCategory] = useState("");
 
   return (
@@ -264,10 +370,10 @@ function Sidebar({ dashboard, categories, signedIn, onAddAlert, onDeleteAlert, o
         <div className="stack">
           {dashboard?.favorites?.length ? (
             dashboard.favorites.map((item) => (
-              <div key={item.id} className="mini-card">
+              <button key={item.id} className="mini-card sidebar-card" onClick={() => onSelectFavorite(item)}>
                 <strong>{item.title}</strong>
-                <small>{item.primaryCategory}</small>
-              </div>
+                <small>{getCategoryLabel(item.primaryCategory, categories)}</small>
+              </button>
             ))
           ) : (
             <p className="muted">No favorites yet.</p>
@@ -285,10 +391,14 @@ function Sidebar({ dashboard, categories, signedIn, onAddAlert, onDeleteAlert, o
         <div className="stack">
           {dashboard?.history?.length ? (
             dashboard.history.map((item) => (
-              <div key={`${item.id}-${item.viewedAt}`} className="mini-card">
+              <button
+                key={`${item.id}-${item.viewedAt}`}
+                className="mini-card sidebar-card"
+                onClick={() => onSelectHistoryItem(item)}
+              >
                 <strong>{item.title}</strong>
                 <small>Viewed {formatDate(item.viewedAt)}</small>
-              </div>
+              </button>
             ))
           ) : (
             <p className="muted">Reading history will appear here.</p>
@@ -315,7 +425,7 @@ function Sidebar({ dashboard, categories, signedIn, onAddAlert, onDeleteAlert, o
             <option value="">Choose category</option>
             {categories.map((category) => (
               <option key={category.code} value={category.code}>
-                {category.code}
+                {category.label}
               </option>
             ))}
           </select>
@@ -342,8 +452,7 @@ function Sidebar({ dashboard, categories, signedIn, onAddAlert, onDeleteAlert, o
             dashboard.alerts.map((alert) => (
               <div key={alert.id} className="mini-card inline">
                 <div>
-                  <strong>{alert.category}</strong>
-                  <small>{alert.label}</small>
+                  <strong>{alert.label || getCategoryLabel(alert.category, categories)}</strong>
                 </div>
                 <button className="ghost" onClick={() => onDeleteAlert(alert.id)}>
                   Remove
@@ -357,7 +466,7 @@ function Sidebar({ dashboard, categories, signedIn, onAddAlert, onDeleteAlert, o
         <div className="stack">
           {(dashboard?.notifications || []).slice(0, 5).map((item) => (
             <div key={item.id} className="mini-card">
-              <strong>{item.category}</strong>
+              <strong>{item.categoryLabel || getCategoryLabel(item.category, categories)}</strong>
               <small>{item.message}</small>
             </div>
           ))}
@@ -427,6 +536,12 @@ export default function App() {
   const [filters, setFilters] = useState(defaultFilters);
   const [categories, setCategories] = useState([]);
   const [results, setResults] = useState([]);
+  const [resultMeta, setResultMeta] = useState({
+    total: 0,
+    page: 1,
+    pageSize: 10,
+    totalPages: 1
+  });
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [dashboard, setDashboard] = useState(null);
   const [user, setUser] = useState(null);
@@ -450,14 +565,37 @@ export default function App() {
     }, 2500);
   }
 
-  async function runSearch() {
+  async function loadArticleIntoDetail(articleId) {
+    setError("");
+
+    try {
+      const existing = results.find((item) => item.id === articleId);
+      const article = existing || (await api.getArticle(articleId));
+      setSelectedArticle(article);
+      showSuccess("Paper loaded.");
+    } catch (loadError) {
+      setError(loadError.message);
+    }
+  }
+
+  async function runSearch(page = 1) {
     setLoading(true);
     setError("");
     setSuccessMessage("");
 
     try {
-      const data = await api.searchArticles(filters);
+      const data = await api.searchArticles({
+        ...filters,
+        start: (page - 1) * 10,
+        maxResults: 10
+      });
       setResults(data.items);
+      setResultMeta({
+        total: data.total ?? data.items.length,
+        page: data.page ?? page,
+        pageSize: data.pageSize ?? 10,
+        totalPages: data.totalPages ?? 1
+      });
       if (data.items[0]) {
         setSelectedArticle(data.items[0]);
       } else {
@@ -472,7 +610,7 @@ export default function App() {
 
   useEffect(() => {
     api.getCategories().then(setCategories).catch((loadError) => setError(loadError.message));
-    runSearch();
+    runSearch(1);
   }, []);
 
   useEffect(() => {
@@ -591,11 +729,17 @@ export default function App() {
               results={results}
               selectedId={selectedArticle?.id}
               onSelect={setSelectedArticle}
+              categories={categories}
+              totalResults={resultMeta.total}
+              currentPage={resultMeta.page}
+              totalPages={resultMeta.totalPages}
+              onPageChange={runSearch}
             />
 
             <ArticleDetail
               article={selectedArticle}
               signedIn={Boolean(user)}
+              categories={categories}
               isFavorite={Boolean(dashboard?.favorites?.some((item) => item.id === selectedArticle?.id))}
               onToggleFavorite={async (article) => {
                 if (!user?.uid) {
@@ -649,6 +793,8 @@ export default function App() {
           dashboard={dashboard}
           categories={categories}
           signedIn={Boolean(user)}
+          onSelectFavorite={(item) => loadArticleIntoDetail(item.id)}
+          onSelectHistoryItem={(item) => loadArticleIntoDetail(item.id)}
           onAddAlert={async (payload) => {
             if (!user?.uid) {
               setError("Sign in first to create alerts.");

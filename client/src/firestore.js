@@ -173,8 +173,9 @@ export async function refreshNotifications(userId, alerts = []) {
         articleId: article.id,
         title: article.title,
         category: alert.category,
+        categoryLabel: alert.label || alert.category,
         published: article.published,
-        message: `New paper in ${alert.category}: ${article.title}`
+        message: `New paper in ${alert.label || alert.category}: ${article.title}`
       }));
     })
   );
