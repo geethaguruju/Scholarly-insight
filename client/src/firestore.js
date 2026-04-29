@@ -202,6 +202,7 @@ export async function addDiscussionPost(articleId, post) {
   const postRef = doc(discussionCollection(articleId));
   await setDoc(postRef, {
     author: post.author || "Anonymous Researcher",
+    userId: post.userId || null,
     message: post.message,
     createdAt: serverTimestamp()
   });
@@ -224,4 +225,11 @@ export async function seedFirestoreIndexes(userId) {
 export async function clearDiscussionPost(articleId, postId) {
   ensureFirestore();
   await deleteDoc(doc(db, "articles", articleId, "discussionPosts", postId));
+}
+
+export async function markNotificationsRead(userId) {
+  ensureFirestore();
+  await updateDoc(userDoc(userId), {
+    notificationsReadAt: serverTimestamp()
+  });
 }

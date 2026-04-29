@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { verifyFirebaseToken } from "./auth.js";
 import {
   addAlert,
   addDiscussionPost,
@@ -20,8 +21,18 @@ const port = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "scholarly-insight-api" });
+});
+
+app.post("/api/auth/verify", verifyFirebaseToken, (req, res) => {
+  // If middleware passes, the user is authenticated
+  res.json({ success: true, uid: req.user.uid, email: req.user.email });
 });
 
 app.get("/api/categories", (_req, res) => {
@@ -176,6 +187,6 @@ app.post("/api/articles/:id/discussions", async (req, res) => {
   }
 });
 
-app.listen(port, () => {
-  console.log(`Scholarly Insight API listening on http://localhost:${port}`);
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Scholarly Insight API listening on http://0.0.0.0:${port}`);
 });

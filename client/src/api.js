@@ -18,6 +18,13 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  verifyToken: (idToken) =>
+    request("/api/auth/verify", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+      },
+    }),
   getCategories: () => request("/api/categories"),
   searchArticles: (params) => {
     const url = new URL(`${API_BASE}/api/articles/search`);
